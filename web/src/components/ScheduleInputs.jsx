@@ -10,7 +10,7 @@ const defaultMaturity = new Date(new Date().setFullYear(new Date().getFullYear()
   .slice(0, 10);
 const defaultSettlement = todayISO;
 
-const FREQUENCIES = [12, 6, 3, 1];
+const FREQUENCIES = [12, 6, 4, 1];
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
 const DAY_COUNTS = ['ACT365F', 'ACT360', '30360US'];
 const COMPOUNDING = ['ANNUAL', 'SEMI', 'STREET'];

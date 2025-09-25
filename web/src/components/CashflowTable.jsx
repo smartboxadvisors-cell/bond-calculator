@@ -11,7 +11,7 @@ export default function CashflowTable({ cashflows = [], title = 'Cashflows', fil
       amount: Number(row.amount).toFixed(6)
     })));
   };
-
+  
   return (
     <div className="cashflow-table">
       <div className="section-actions" style={{ padding: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
