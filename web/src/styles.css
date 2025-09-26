@@ -71,6 +71,21 @@ body {
   font-weight: 500;
 }
 
+.input-with-action {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.input-with-action select {
+  flex: 1;
+}
+
+.input-with-action button {
+  padding: 0.55rem 0.9rem;
+  white-space: nowrap;
+}
+
 input,
 select,
 button {

@@ -195,9 +195,12 @@ export default function ScheduleInputs() {
       {error && <div className="error-text">{error}</div>}
       {result && (
         <div className="stats-grid">
-          <StatCard label="Dirty Price" value={result.dirtyPer100} decimals={4} />
-          <StatCard label="Clean Price" value={result.cleanPer100} decimals={4} />
-          <StatCard label="Accrued" value={result.accruedPer100} decimals={4} />
+          <StatCard label="Dirty Price (per 100)" value={result.dirtyPer100} decimals={4} />
+          <StatCard label="Dirty Price (total)" value={result.dirtyTotal} decimals={2} />
+          <StatCard label="Clean Price (per 100)" value={result.cleanPer100} decimals={4} />
+          <StatCard label="Clean Price (total)" value={result.cleanTotal} decimals={2} />
+          <StatCard label="Accrued (per 100)" value={result.accruedPer100} decimals={4} />
+          <StatCard label="Accrued (total)" value={result.accruedTotal} decimals={2} />
           <StatCard label="Yield" value={result.ytm} format="percent" decimals={4} />
           <StatCard label="Macaulay" value={result.macaulay} decimals={4} />
           <StatCard label="Modified" value={result.modified} decimals={4} />

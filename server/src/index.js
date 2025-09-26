@@ -163,10 +163,25 @@ app.post('/api/priceSchedule', async (req, res) => {
     const accrued = accruedInterest(dc, last, settlementISO, next, scheduleData.couponAmount);
     const clean = risk.price - accrued;
 
+    const faceValueRaw = scheduleData.faceValue ?? schedule.face ?? 0;
+    const rawFace = Number(faceValueRaw);
+    const faceValue = Number.isFinite(rawFace) ? rawFace : 0;
+    const notionalScale = faceValue > 0 ? faceValue / 100 : null;
+    const round8 = value => Number(value.toFixed(8));
+    const toPer100 = value => (notionalScale ? Number((value / notionalScale).toFixed(8)) : round8(value));
+
+    const dirtyTotal = round8(risk.price);
+    const cleanTotal = round8(clean);
+    const accruedTotal = round8(accrued);
+
     res.json({
-      dirtyPer100: Number(risk.price.toFixed(8)),
-      cleanPer100: Number(clean.toFixed(8)),
-      accruedPer100: Number(accrued.toFixed(8)),
+      dirtyPer100: toPer100(dirtyTotal),
+      cleanPer100: toPer100(cleanTotal),
+      accruedPer100: toPer100(accruedTotal),
+      dirtyTotal,
+      cleanTotal,
+      accruedTotal,
+      faceValue,
       ytm: Number(y.toFixed(8)),
       macaulay: risk.macaulay,
       modified: risk.modified,
@@ -210,10 +225,25 @@ app.post('/api/ytmSchedule', async (req, res) => {
     const accrued = accruedInterest(dc, last, settlementISO, next, scheduleData.couponAmount);
     const clean = risk.price - accrued;
 
+    const faceValueRaw = scheduleData.faceValue ?? schedule.face ?? 0;
+    const rawFace = Number(faceValueRaw);
+    const faceValue = Number.isFinite(rawFace) ? rawFace : 0;
+    const notionalScale = faceValue > 0 ? faceValue / 100 : null;
+    const round8 = value => Number(value.toFixed(8));
+    const toPer100 = value => (notionalScale ? Number((value / notionalScale).toFixed(8)) : round8(value));
+
+    const dirtyTotal = round8(risk.price);
+    const cleanTotal = round8(clean);
+    const accruedTotal = round8(accrued);
+
     res.json({
-      dirtyPer100: Number(risk.price.toFixed(8)),
-      cleanPer100: Number(clean.toFixed(8)),
-      accruedPer100: Number(accrued.toFixed(8)),
+      dirtyPer100: toPer100(dirtyTotal),
+      cleanPer100: toPer100(cleanTotal),
+      accruedPer100: toPer100(accruedTotal),
+      dirtyTotal,
+      cleanTotal,
+      accruedTotal,
+      faceValue,
       ytm: Number(y.toFixed(8)),
       macaulay: risk.macaulay,
       modified: risk.modified,
@@ -237,10 +267,18 @@ app.post('/api/priceDirect', (req, res) => {
 
     const y = sanitizeYield(quote.yield);
     const risk = riskStats(settlementISO, flows, y, dayCount, comp);
+    const round8 = value => Number(value.toFixed(8));
+    const dirtyTotal = round8(risk.price);
+    const cleanTotal = dirtyTotal;
+    const accruedTotal = 0;
+
     res.json({
-      dirtyPer100: Number(risk.price.toFixed(8)),
-      cleanPer100: Number(risk.price.toFixed(8)),
-      accruedPer100: 0,
+      dirtyPer100: dirtyTotal,
+      cleanPer100: cleanTotal,
+      accruedPer100: accruedTotal,
+      dirtyTotal,
+      cleanTotal,
+      accruedTotal,
       ytm: Number(y.toFixed(8)),
       macaulay: risk.macaulay,
       modified: risk.modified,
@@ -269,11 +307,18 @@ app.post('/api/ytmDirect', (req, res) => {
 
     const y = ytmFromPrice(settlementISO, flows, targetPrice, dayCount, comp);
     const risk = riskStats(settlementISO, flows, y, dayCount, comp);
+    const round8 = value => Number(value.toFixed(8));
+    const dirtyTotal = round8(risk.price);
+    const cleanTotal = dirtyTotal;
+    const accruedTotal = 0;
 
     res.json({
-      dirtyPer100: Number(risk.price.toFixed(8)),
-      cleanPer100: Number(risk.price.toFixed(8)),
-      accruedPer100: 0,
+      dirtyPer100: dirtyTotal,
+      cleanPer100: cleanTotal,
+      accruedPer100: accruedTotal,
+      dirtyTotal,
+      cleanTotal,
+      accruedTotal,
       ytm: Number(y.toFixed(8)),
       macaulay: risk.macaulay,
       modified: risk.modified,

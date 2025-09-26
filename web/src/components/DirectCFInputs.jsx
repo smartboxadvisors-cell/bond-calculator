@@ -97,6 +97,30 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
     }
   };
 
+  const handleCopyIsin = async () => {
+    if (!selectedIsin) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selectedIsin);
+      } else {
+        const tempInput = document.createElement('textarea');
+        tempInput.value = selectedIsin;
+        tempInput.setAttribute('readonly', '');
+        tempInput.style.position = 'absolute';
+        tempInput.style.left = '-9999px';
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+      }
+      setError('');
+      setStatus(`Copied ${selectedIsin} to clipboard`);
+    } catch (err) {
+      setStatus('');
+      setError('Unable to copy ISIN');
+    }
+  };
+
   const handleCalculate = async event => {
     event.preventDefault();
     setCalculating(true);
@@ -145,15 +169,20 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
       <form onSubmit={handleCalculate} className="form-grid three-col">
         <label className="label">
           <span>ISIN</span>
-          <select value={selectedIsin} onChange={event => setSelectedIsin(event.target.value)} disabled={loadingBonds}>
-            {loadingBonds && <option>Loading...</option>}
-            {!loadingBonds && !bonds.length && <option value="">No bonds found</option>}
-            {bonds.map(bond => (
-              <option key={bond.isin} value={bond.isin}>
-                {bond.isin}
-              </option>
-            ))}
-          </select>
+          <div className="input-with-action">
+            <select value={selectedIsin} onChange={event => setSelectedIsin(event.target.value)} disabled={loadingBonds}>
+              {loadingBonds && <option>Loading...</option>}
+              {!loadingBonds && !bonds.length && <option value="">No bonds found</option>}
+              {bonds.map(bond => (
+                <option key={bond.isin} value={bond.isin}>
+                  {bond.isin}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="secondary" onClick={handleCopyIsin} disabled={!selectedIsin || loadingBonds}>
+              Copy
+            </button>
+          </div>
         </label>
         <label className="label">
           <span>Settlement Date</span>

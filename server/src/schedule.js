@@ -1,4 +1,4 @@
-﻿import { toISO, rollBusiness, addMonths, compareISO } from './daycount.js';
+import { toISO, rollBusiness, addMonths, compareISO } from './daycount.js';
 
 function sanitizeNumber(value, fallback = 0) {
   const num = Number(value);
@@ -57,6 +57,8 @@ export function buildSchedule({
   });
 
   return {
+    faceValue: Number(faceValue.toFixed(8)),
+    redemptionPercent: Number(redemptionPercent.toFixed(8)),
     cashflows,
     couponAmount: Number(couponPerPeriod.toFixed(8)),
     redemptionAmount: Number(redemptionAmount.toFixed(8)),
