@@ -211,8 +211,8 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         <label className="label">
           <span>Mode</span>
           <select value={mode} onChange={event => setMode(event.target.value)}>
-            <option value="price-from-yield">Price ← Yield</option>
-            <option value="yield-from-price">Yield ← Price</option>
+            <option value="price-from-yield">Price → Yield</option>
+            <option value="yield-from-price">Yield → Price</option>
           </select>
         </label>
         {showYieldInput ? (

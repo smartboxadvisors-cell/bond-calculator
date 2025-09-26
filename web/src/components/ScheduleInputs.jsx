@@ -169,8 +169,8 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Mode</span>
           <select name="mode" value={form.mode} onChange={handleChange}>
-            <option value="price-from-yield">Price ← Yield</option>
-            <option value="yield-from-price">Yield ← Price</option>
+            <option value="price-from-yield">Price → Yield</option>
+            <option value="yield-from-price">Yield → Price</option>
           </select>
         </label>
         {showYieldInput ? (
