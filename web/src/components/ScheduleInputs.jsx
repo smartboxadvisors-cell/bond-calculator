@@ -4,6 +4,20 @@ import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
 
 const todayISO = new Date().toISOString().slice(0, 10);
+const maxSettlementISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const clampSettlement = value => {
+  if (!value) return todayISO;
+  const iso = value.slice(0, 10);
+  if (iso < todayISO) return todayISO;
+  if (iso > maxSettlementISO) return maxSettlementISO;
+  return iso;
+};
+const preventDateTyping = event => {
+  const allowedKeys = ['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
+  if (!allowedKeys.includes(event.key)) {
+    event.preventDefault();
+  }
+};
 const defaultIssue = todayISO;
 const defaultMaturity = new Date(new Date().setFullYear(new Date().getFullYear() + 5))
   .toISOString()
@@ -28,7 +42,7 @@ export default function ScheduleInputs() {
     freqMonths: 6,
     issueDate: defaultIssue,
     maturityDate: defaultMaturity,
-    settlementDate: defaultSettlement,
+    settlementDate: clampSettlement(defaultSettlement),
     settlementLag: 0,
     businessRoll: 'FOLLOWING',
     dayCount: 'ACT365F',
@@ -45,6 +59,11 @@ export default function ScheduleInputs() {
 
   const handleChange = event => {
     const { name, value } = event.target;
+    if (name === 'settlementDate') {
+      const clamped = clampSettlement(value);
+      setForm(prev => ({ ...prev, [name]: clamped }));
+      return;
+    }
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -126,7 +145,15 @@ export default function ScheduleInputs() {
         </label>
         <label className="label">
           <span>Settlement Date</span>
-          <input type="date" name="settlementDate" value={form.settlementDate} onChange={handleChange} />
+          <input
+            type="date"
+            name="settlementDate"
+            value={form.settlementDate}
+            onChange={handleChange}
+            onKeyDown={preventDateTyping}
+            min={todayISO}
+            max={maxSettlementISO}
+          />
         </label>
         <label className="label">
           <span>Settlement Lag (days)</span>
@@ -169,8 +196,8 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Mode</span>
           <select name="mode" value={form.mode} onChange={handleChange}>
-            <option value="price-from-yield">Price → Yield</option>
-            <option value="yield-from-price">Yield → Price</option>
+            <option value="price-from-yield">Yield → Price</option>
+            <option value="yield-from-price">Price → Yield</option>
           </select>
         </label>
         {showYieldInput ? (

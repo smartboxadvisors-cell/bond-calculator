@@ -25,8 +25,23 @@ function fallbackCashflows(bond, settlementDate) {
 
 export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = false }) {
   const todayISO = new Date().toISOString().slice(0, 10);
+  const maxSettlementISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const enforceSettlementRange = value => {
+    if (!value) return todayISO;
+    const iso = value.slice(0, 10);
+    if (iso < todayISO) return todayISO;
+    if (iso > maxSettlementISO) return maxSettlementISO;
+    return iso;
+  };
+  const preventDateTyping = event => {
+    const allowedKeys = ['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
+    if (!allowedKeys.includes(event.key)) {
+      event.preventDefault();
+    }
+  };
+
   const [selectedIsin, setSelectedIsin] = useState('');
-  const [settlementDate, setSettlementDate] = useState(todayISO);
+  const [settlementDate, setSettlementDate] = useState(enforceSettlementRange(todayISO));
   const [dayCount, setDayCount] = useState('ACT365F');
   const [compounding, setCompounding] = useState('ANNUAL');
   const [mode, setMode] = useState('price-from-yield');
@@ -186,7 +201,14 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         </label>
         <label className="label">
           <span>Settlement Date</span>
-          <input type="date" value={settlementDate} onChange={event => setSettlementDate(event.target.value)} />
+          <input
+            type="date"
+            value={settlementDate}
+            onChange={event => setSettlementDate(enforceSettlementRange(event.target.value))}
+            onKeyDown={preventDateTyping}
+            min={todayISO}
+            max={maxSettlementISO}
+          />
         </label>
         <label className="label">
           <span>Day-count</span>
@@ -211,8 +233,8 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         <label className="label">
           <span>Mode</span>
           <select value={mode} onChange={event => setMode(event.target.value)}>
-            <option value="price-from-yield">Price → Yield</option>
-            <option value="yield-from-price">Yield → Price</option>
+            <option value="price-from-yield">Yield → Price</option>
+            <option value="yield-from-price">Price → Yield</option>
           </select>
         </label>
         {showYieldInput ? (
