@@ -7,6 +7,28 @@ import CashflowTable from './CashflowTable.jsx';
 const DAY_COUNTS = ['ACT365F', 'ACT360', '30360US'];
 const COMPOUNDING = ['ANNUAL', 'SEMI', 'STREET'];
 
+const pad2 = value => String(value).padStart(2, '0');
+const formatISODate = date => {
+  if (!(date instanceof Date) || Number.isNaN(date.valueOf())) return '';
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+const parseISOToLocalDate = iso => {
+  if (!iso) return null;
+  const parts = iso.split('-').map(Number);
+  if (parts.length !== 3) return null;
+  const [year, month, day] = parts;
+  if (![year, month, day].every(num => Number.isFinite(num))) return null;
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+const shiftISODate = (iso, offsetDays) => {
+  const date = parseISOToLocalDate(iso);
+  if (!date) return iso;
+  date.setDate(date.getDate() + offsetDays);
+  return formatISODate(date);
+};
+
 function toRate(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
@@ -24,19 +46,45 @@ function fallbackCashflows(bond, settlementDate) {
 }
 
 export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = false }) {
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const settlementMaxISO = useMemo(() => {
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    return nextWeek.toISOString().slice(0, 10);
+  const todayISO = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return formatISODate(today);
   }, []);
+  const settlementMaxISO = useMemo(() => shiftISODate(todayISO, 7), [todayISO]);
+
+  const isSunday = iso => {
+    const date = parseISOToLocalDate(iso);
+    if (!date) return false;
+    return date.getDay() === 0;
+  };
+
+  const adjustSettlementDate = iso => {
+    if (!iso) return iso;
+    if (!isSunday(iso)) return iso;
+    const forward = shiftISODate(iso, 1);
+    if (forward && forward <= settlementMaxISO && forward >= todayISO && !isSunday(forward)) {
+      return forward;
+    }
+    const backward = shiftISODate(iso, -1);
+    if (backward && backward >= todayISO && !isSunday(backward)) {
+      return backward;
+    }
+    return todayISO;
+  };
+
+  const settlementMinISO = adjustSettlementDate(todayISO);
 
   const clampSettlementDate = value => {
-    if (!value) return todayISO;
-    const iso = value.slice(0, 10);
-    if (iso < todayISO) return todayISO;
-    if (iso > settlementMaxISO) return settlementMaxISO;
-    return iso;
+    if (!value) return settlementMinISO;
+    let iso = value.slice(0, 10);
+    if (iso < todayISO) {
+      return settlementMinISO;
+    }
+    if (iso > settlementMaxISO) {
+      iso = settlementMaxISO;
+    }
+    return adjustSettlementDate(iso);
   };
 
   const preventDateTyping = event => {
@@ -47,7 +95,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   };
 
   const [selectedIsin, setSelectedIsin] = useState('');
-  const [settlementDate, setSettlementDate] = useState(() => clampSettlementDate(todayISO));
+  const [settlementDate, setSettlementDate] = useState(() => settlementMinISO);
   const [dayCount, setDayCount] = useState('ACT365F');
   const [compounding, setCompounding] = useState('ANNUAL');
   const [mode, setMode] = useState('price-from-yield');
@@ -216,7 +264,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
             value={settlementDate}
             onChange={handleSettlementDateChange}
             onKeyDown={preventDateTyping}
-            min={todayISO}
+            min={settlementMinISO}
             max={settlementMaxISO}
           />
         </label>

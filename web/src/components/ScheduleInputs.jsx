@@ -3,44 +3,98 @@ import { priceSchedule, ytmSchedule } from '../lib/api.js';
 import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
 
-const todayISO = new Date().toISOString().slice(0, 10);
-const nextWeekISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  .toISOString()
-  .slice(0, 10);
+const pad2 = value => String(value).padStart(2, '0');
+const formatISODate = date => {
+  if (!(date instanceof Date) || Number.isNaN(date.valueOf())) return '';
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+const parseISOToLocalDate = iso => {
+  if (!iso) return null;
+  const parts = iso.split('-').map(Number);
+  if (parts.length !== 3) return null;
+  const [year, month, day] = parts;
+  if (![year, month, day].every(num => Number.isFinite(num))) return null;
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+const shiftISODate = (iso, offsetDays) => {
+  const date = parseISOToLocalDate(iso);
+  if (!date) return iso;
+  date.setDate(date.getDate() + offsetDays);
+  return formatISODate(date);
+};
+
+const todayISO = (() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return formatISODate(today);
+})();
+const yesterdayISO = shiftISODate(todayISO, -1);
+const nextWeekISO = shiftISODate(todayISO, 7);
+
+const isSunday = iso => {
+  const date = parseISOToLocalDate(iso);
+  if (!date) return false;
+  return date.getDay() === 0;
+};
+const adjustSettlementDate = iso => {
+  if (!iso) return iso;
+  if (!isSunday(iso)) return iso;
+  const forward = shiftISODate(iso, 1);
+  if (forward && forward <= nextWeekISO && forward >= todayISO && !isSunday(forward)) {
+    return forward;
+  }
+  const backward = shiftISODate(iso, -1);
+  if (backward && backward >= todayISO && !isSunday(backward)) {
+    return backward;
+  }
+  return todayISO;
+};
+
+const settlementMinISO = adjustSettlementDate(todayISO);
 const clampIssueDate = value => {
-  if (!value) return todayISO;
+  if (!value) return yesterdayISO;
   const iso = value.slice(0, 10);
-  return iso > todayISO ? todayISO : iso;
+  if (iso >= todayISO) return yesterdayISO;
+  return iso;
 };
+
 const clampSettlementDate = value => {
-  if (!value) return todayISO;
-  const iso = value.slice(0, 10);
-  if (iso < todayISO) return todayISO;
-  return iso > nextWeekISO ? nextWeekISO : iso;
+  if (!value) return settlementMinISO;
+  let iso = value.slice(0, 10);
+  if (iso < todayISO) {
+    return settlementMinISO;
+  }
+  if (iso > nextWeekISO) {
+    iso = nextWeekISO;
+  }
+  return adjustSettlementDate(iso);
 };
+
 const preventDateTyping = event => {
   const allowedKeys = ['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
   if (!allowedKeys.includes(event.key)) {
     event.preventDefault();
   }
 };
-const defaultIssue = todayISO;
-const defaultMaturity = new Date(new Date().setFullYear(new Date().getFullYear() + 5))
-  .toISOString()
-  .slice(0, 10);
-const defaultSettlement = clampSettlementDate(todayISO);
-
+const defaultIssue = clampIssueDate(yesterdayISO);
+const defaultMaturity = (() => {
+  const maturity = new Date();
+  maturity.setHours(0, 0, 0, 0);
+  maturity.setFullYear(maturity.getFullYear() + 5);
+  return formatISODate(maturity);
+})();
+const defaultSettlement = settlementMinISO;
 const FREQUENCIES = [12, 6, 4, 1];
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
 const DAY_COUNTS = ['ACT365F', 'ACT360', '30360US'];
 const COMPOUNDING = ['ANNUAL', 'SEMI', 'STREET'];
-
 function toRate(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
   return Math.abs(num) > 1.5 ? num / 100 : num;
 }
-
 export default function ScheduleInputs() {
   const [form, setForm] = useState({
     face: 100,
@@ -62,7 +116,6 @@ export default function ScheduleInputs() {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [cashflows, setCashflows] = useState([]);
-
   const handleChange = event => {
     const { name, value } = event.target;
     if (name === 'issueDate') {
@@ -77,7 +130,6 @@ export default function ScheduleInputs() {
     }
     setForm(prev => ({ ...prev, [name]: value }));
   };
-
   const handleSubmit = async event => {
     event.preventDefault();
     setLoading(true);
@@ -98,7 +150,6 @@ export default function ScheduleInputs() {
         },
         settlementDate: form.settlementDate
       };
-
       let data;
       if (form.mode === 'price-from-yield') {
         payload.quote = { yield: toRate(form.yieldInput) };
@@ -117,9 +168,7 @@ export default function ScheduleInputs() {
       setLoading(false);
     }
   };
-
   const showYieldInput = form.mode === 'price-from-yield';
-
   return (
     <section className="panel">
       <header>
@@ -154,7 +203,7 @@ export default function ScheduleInputs() {
             value={form.issueDate}
             onChange={handleChange}
             onKeyDown={preventDateTyping}
-            max={todayISO}
+            max={yesterdayISO}
           />
         </label>
         <label className="label">
@@ -169,7 +218,7 @@ export default function ScheduleInputs() {
             value={form.settlementDate}
             onChange={handleChange}
             onKeyDown={preventDateTyping}
-            min={todayISO}
+            min={settlementMinISO}
             max={nextWeekISO}
           />
         </label>
