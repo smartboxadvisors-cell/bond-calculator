@@ -24,15 +24,21 @@ function fallbackCashflows(bond, settlementDate) {
 }
 
 export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = false }) {
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const maxSettlementISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const enforceSettlementRange = value => {
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const settlementMaxISO = useMemo(() => {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    return nextWeek.toISOString().slice(0, 10);
+  }, []);
+
+  const clampSettlementDate = value => {
     if (!value) return todayISO;
     const iso = value.slice(0, 10);
     if (iso < todayISO) return todayISO;
-    if (iso > maxSettlementISO) return maxSettlementISO;
+    if (iso > settlementMaxISO) return settlementMaxISO;
     return iso;
   };
+
   const preventDateTyping = event => {
     const allowedKeys = ['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
     if (!allowedKeys.includes(event.key)) {
@@ -41,7 +47,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   };
 
   const [selectedIsin, setSelectedIsin] = useState('');
-  const [settlementDate, setSettlementDate] = useState(enforceSettlementRange(todayISO));
+  const [settlementDate, setSettlementDate] = useState(() => clampSettlementDate(todayISO));
   const [dayCount, setDayCount] = useState('ACT365F');
   const [compounding, setCompounding] = useState('ANNUAL');
   const [mode, setMode] = useState('price-from-yield');
@@ -86,6 +92,10 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
       return bond.cashflows;
     }
     return fallbackCashflows(bond, settlementDate);
+  };
+
+  const handleSettlementDateChange = event => {
+    setSettlementDate(clampSettlementDate(event.target.value));
   };
 
   const handleUpload = async event => {
@@ -204,10 +214,10 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
           <input
             type="date"
             value={settlementDate}
-            onChange={event => setSettlementDate(enforceSettlementRange(event.target.value))}
+            onChange={handleSettlementDateChange}
             onKeyDown={preventDateTyping}
             min={todayISO}
-            max={maxSettlementISO}
+            max={settlementMaxISO}
           />
         </label>
         <label className="label">

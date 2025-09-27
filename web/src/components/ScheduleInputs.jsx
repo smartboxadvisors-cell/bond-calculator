@@ -4,13 +4,19 @@ import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
 
 const todayISO = new Date().toISOString().slice(0, 10);
-const maxSettlementISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-const clampSettlement = value => {
+const nextWeekISO = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+const clampIssueDate = value => {
+  if (!value) return todayISO;
+  const iso = value.slice(0, 10);
+  return iso > todayISO ? todayISO : iso;
+};
+const clampSettlementDate = value => {
   if (!value) return todayISO;
   const iso = value.slice(0, 10);
   if (iso < todayISO) return todayISO;
-  if (iso > maxSettlementISO) return maxSettlementISO;
-  return iso;
+  return iso > nextWeekISO ? nextWeekISO : iso;
 };
 const preventDateTyping = event => {
   const allowedKeys = ['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
@@ -22,7 +28,7 @@ const defaultIssue = todayISO;
 const defaultMaturity = new Date(new Date().setFullYear(new Date().getFullYear() + 5))
   .toISOString()
   .slice(0, 10);
-const defaultSettlement = todayISO;
+const defaultSettlement = clampSettlementDate(todayISO);
 
 const FREQUENCIES = [12, 6, 4, 1];
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
@@ -40,9 +46,9 @@ export default function ScheduleInputs() {
     face: 100,
     couponRate: 7.5,
     freqMonths: 6,
-    issueDate: defaultIssue,
+    issueDate: clampIssueDate(defaultIssue),
     maturityDate: defaultMaturity,
-    settlementDate: clampSettlement(defaultSettlement),
+    settlementDate: defaultSettlement,
     settlementLag: 0,
     businessRoll: 'FOLLOWING',
     dayCount: 'ACT365F',
@@ -59,8 +65,13 @@ export default function ScheduleInputs() {
 
   const handleChange = event => {
     const { name, value } = event.target;
+    if (name === 'issueDate') {
+      const clamped = clampIssueDate(value);
+      setForm(prev => ({ ...prev, [name]: clamped }));
+      return;
+    }
     if (name === 'settlementDate') {
-      const clamped = clampSettlement(value);
+      const clamped = clampSettlementDate(value);
       setForm(prev => ({ ...prev, [name]: clamped }));
       return;
     }
@@ -137,7 +148,14 @@ export default function ScheduleInputs() {
         </label>
         <label className="label">
           <span>Issue Date</span>
-          <input type="date" name="issueDate" value={form.issueDate} onChange={handleChange} />
+          <input
+            type="date"
+            name="issueDate"
+            value={form.issueDate}
+            onChange={handleChange}
+            onKeyDown={preventDateTyping}
+            max={todayISO}
+          />
         </label>
         <label className="label">
           <span>Maturity Date</span>
@@ -152,7 +170,7 @@ export default function ScheduleInputs() {
             onChange={handleChange}
             onKeyDown={preventDateTyping}
             min={todayISO}
-            max={maxSettlementISO}
+            max={nextWeekISO}
           />
         </label>
         <label className="label">
