@@ -109,6 +109,31 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   const [calculating, setCalculating] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const handleSettlementDateChange = event => {
+    const target = event.target;
+    const iso = target.value.slice(0, 10);
+    if (!iso) {
+      setSettlementDate(settlementMinISO);
+      target.classList.remove('date-input-sunday');
+      target.setCustomValidity('');
+      return;
+    }
+    if (isSunday(iso)) {
+      target.value = settlementDate;
+      target.classList.add('date-input-sunday');
+      target.setCustomValidity('Settlement cannot fall on Sunday.');
+      target.reportValidity();
+      setTimeout(() => {
+        target.classList.remove('date-input-sunday');
+        target.setCustomValidity('');
+      }, 1500);
+      return;
+    }
+    target.classList.remove('date-input-sunday');
+    target.setCustomValidity('');
+    setSettlementDate(clampSettlementDate(iso));
+  };
+
   const bondMap = useMemo(() => {
     const map = {};
     for (const bond of bonds) {
@@ -140,10 +165,6 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
       return bond.cashflows;
     }
     return fallbackCashflows(bond, settlementDate);
-  };
-
-  const handleSettlementDateChange = event => {
-    setSettlementDate(clampSettlementDate(event.target.value));
   };
 
   const handleUpload = async event => {
@@ -266,6 +287,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
             onKeyDown={preventDateTyping}
             min={settlementMinISO}
             max={settlementMaxISO}
+            className="date-input"
           />
         </label>
         <label className="label">

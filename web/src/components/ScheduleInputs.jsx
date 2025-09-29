@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { priceSchedule, ytmSchedule } from '../lib/api.js';
 import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
@@ -124,8 +124,29 @@ export default function ScheduleInputs() {
       return;
     }
     if (name === 'settlementDate') {
-      const clamped = clampSettlementDate(value);
-      setForm(prev => ({ ...prev, [name]: clamped }));
+      const target = event.target;
+      const iso = value.slice(0, 10);
+      if (!iso) {
+        setForm(prev => ({ ...prev, settlementDate: settlementMinISO }));
+        target.classList.remove('date-input-sunday');
+        target.setCustomValidity('');
+        return;
+      }
+      if (isSunday(iso)) {
+        target.value = form.settlementDate;
+        target.classList.add('date-input-sunday');
+        target.setCustomValidity('Settlement cannot fall on Sunday.');
+        target.reportValidity();
+        setTimeout(() => {
+          target.classList.remove('date-input-sunday');
+          target.setCustomValidity('');
+        }, 1500);
+        return;
+      }
+      target.classList.remove('date-input-sunday');
+      target.setCustomValidity('');
+      const clamped = clampSettlementDate(iso);
+      setForm(prev => ({ ...prev, settlementDate: clamped }));
       return;
     }
     setForm(prev => ({ ...prev, [name]: value }));
@@ -202,7 +223,6 @@ export default function ScheduleInputs() {
             name="issueDate"
             value={form.issueDate}
             onChange={handleChange}
-            onKeyDown={preventDateTyping}
             max={yesterdayISO}
           />
         </label>
@@ -220,6 +240,7 @@ export default function ScheduleInputs() {
             onKeyDown={preventDateTyping}
             min={settlementMinISO}
             max={nextWeekISO}
+            className="date-input"
           />
         </label>
         <label className="label">
@@ -263,8 +284,8 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Mode</span>
           <select name="mode" value={form.mode} onChange={handleChange}>
-            <option value="price-from-yield">Yield → Price</option>
-            <option value="yield-from-price">Price → Yield</option>
+            <option value="price-from-yield">Yield ? Price</option>
+            <option value="yield-from-price">Price ? Yield</option>
           </select>
         </label>
         {showYieldInput ? (
@@ -282,7 +303,7 @@ export default function ScheduleInputs() {
         <div className="label">
           <span>&nbsp;</span>
           <button type="submit" disabled={loading}>
-            {loading ? 'Calculating…' : 'Calculate'}
+            {loading ? 'Calculating�' : 'Calculate'}
           </button>
         </div>
       </form>
