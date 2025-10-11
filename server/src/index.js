@@ -160,7 +160,9 @@ app.post('/api/priceSchedule', async (req, res) => {
 
     const risk = riskStats(settlementISO, flows, y, dc, comp);
     const { last, next } = adjacentCoupons(scheduleData.couponDates, settlementISO);
-    const accrued = accruedInterest(dc, last, settlementISO, next, scheduleData.couponAmount);
+    const nextPeriod = scheduleData.periods?.find(period => period.end === next);
+    const couponForPeriod = nextPeriod ? nextPeriod.couponAmount : scheduleData.couponAmount;
+    const accrued = accruedInterest(dc, last, settlementISO, next, couponForPeriod);
     const clean = risk.price - accrued;
 
     res.json({
@@ -172,7 +174,8 @@ app.post('/api/priceSchedule', async (req, res) => {
       modified: risk.modified,
       dv01: risk.dv01,
       convexity: risk.convexity,
-      cashflows: flows
+      cashflows: flows,
+      settlementDate: settlementISO
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -207,7 +210,9 @@ app.post('/api/ytmSchedule', async (req, res) => {
     const y = ytmFromPrice(settlementISO, flows, targetPrice, dc, comp);
     const risk = riskStats(settlementISO, flows, y, dc, comp);
     const { last, next } = adjacentCoupons(scheduleData.couponDates, settlementISO);
-    const accrued = accruedInterest(dc, last, settlementISO, next, scheduleData.couponAmount);
+    const nextPeriod = scheduleData.periods?.find(period => period.end === next);
+    const couponForPeriod = nextPeriod ? nextPeriod.couponAmount : scheduleData.couponAmount;
+    const accrued = accruedInterest(dc, last, settlementISO, next, couponForPeriod);
     const clean = risk.price - accrued;
 
     res.json({
@@ -219,7 +224,8 @@ app.post('/api/ytmSchedule', async (req, res) => {
       modified: risk.modified,
       dv01: risk.dv01,
       convexity: risk.convexity,
-      cashflows: flows
+      cashflows: flows,
+      settlementDate: settlementISO
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -246,7 +252,8 @@ app.post('/api/priceDirect', (req, res) => {
       modified: risk.modified,
       dv01: risk.dv01,
       convexity: risk.convexity,
-      cashflows: flows
+      cashflows: flows,
+      settlementDate: settlementISO
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -279,7 +286,8 @@ app.post('/api/ytmDirect', (req, res) => {
       modified: risk.modified,
       dv01: risk.dv01,
       convexity: risk.convexity,
-      cashflows: flows
+      cashflows: flows,
+      settlementDate: settlementISO
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -206,8 +206,8 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         <label className="label">
           <span>Mode</span>
           <select value={mode} onChange={event => setMode(event.target.value)}>
-            <option value="price-from-yield">Price ← Yield</option>
-            <option value="yield-from-price">Yield ← Price</option>
+            <option value="price-from-yield">Price -> Yield</option>
+            <option value="yield-from-price">Yield -> Price</option>
           </select>
         </label>
         {showYieldInput ? (
@@ -230,7 +230,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         <div className="label">
           <span>&nbsp;</span>
           <button type="submit" disabled={!selectedIsin || calculating}>
-            {calculating ? 'Calculating…' : 'Calculate'}
+            {calculating ? 'Calculating...' : 'Calculate'}
           </button>
         </div>
       </form>
@@ -248,7 +248,18 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
           <StatCard label="Convexity" value={result.convexity} decimals={6} />
         </div>
       )}
-      <CashflowTable cashflows={cashflows} filename={`direct-${selectedIsin || 'cashflows'}.csv`} />
+      <CashflowTable
+        cashflows={cashflows}
+        filename={`direct-${selectedIsin || 'cashflows'}.csv`}
+        minDate={result?.settlementDate || settlementDate}
+      />
     </section>
   );
 }
+
+
+
+
+
+
+

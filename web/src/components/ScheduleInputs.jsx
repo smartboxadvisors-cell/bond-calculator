@@ -24,6 +24,12 @@ function toRate(value) {
   return Math.abs(num) > 1.5 ? num / 100 : num;
 }
 
+function clampFourDigitYear(value) {
+  if (!value) return value;
+  const sanitized = String(value).replace(/^(\d{4})\d*/, '$1');
+  return sanitized.length > 10 ? sanitized.slice(0, 10) : sanitized;
+}
+
 export default function ScheduleInputs() {
   const [form, setForm] = useState({
     face: 100,
@@ -57,17 +63,22 @@ export default function ScheduleInputs() {
 
   const handleChange = event => {
     const { name, value } = event.target;
+    if (name === 'maturityDate') {
+      const sanitized = clampFourDigitYear(value);
+      setForm(prev => ({ ...prev, [name]: sanitized }));
+      return;
+    }
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleIssueChange = event => {
-    const { value } = event.target;
-    if (!value) {
+    const sanitized = clampFourDigitYear(event.target.value);
+    if (!sanitized) {
       setForm(prev => ({ ...prev, issueDate: '' }));
       return;
     }
 
-    const nextValue = value > maxIssueDate ? maxIssueDate : value;
+    const nextValue = sanitized > maxIssueDate ? maxIssueDate : sanitized;
     setForm(prev => ({ ...prev, issueDate: nextValue }));
   };
 
@@ -112,6 +123,7 @@ export default function ScheduleInputs() {
   };
 
   const showYieldInput = form.mode === 'price-from-yield';
+  const tableMinDate = result?.settlementDate || form.settlementDate;
 
   return (
     <section className="panel">
@@ -141,11 +153,24 @@ export default function ScheduleInputs() {
         </label>
         <label className="label">
           <span>Issue Date</span>
-          <input type="date" name="issueDate" value={form.issueDate} onChange={handleIssueChange} max={maxIssueDate} lang="en-GB" />
+          <input
+            type="date"
+            name="issueDate"
+            value={form.issueDate}
+            onChange={handleIssueChange}
+            max={maxIssueDate}
+            lang="en-GB"
+          />
         </label>
         <label className="label">
           <span>Maturity Date</span>
-          <input type="date" name="maturityDate" value={form.maturityDate} onChange={handleChange} lang="en-GB" />
+          <input
+            type="date"
+            name="maturityDate"
+            value={form.maturityDate}
+            onChange={handleChange}
+            lang="en-GB"
+          />
         </label>
         <label className="label">
           <span>Settlement Date</span>
@@ -204,8 +229,8 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Mode</span>
           <select name="mode" value={form.mode} onChange={handleChange}>
-            <option value="price-from-yield">Price ← Yield</option>
-            <option value="yield-from-price">Yield ← Price</option>
+            <option value="price-from-yield">Price -> Yield</option>
+            <option value="yield-from-price">Yield -> Price</option>
           </select>
         </label>
         {showYieldInput ? (
@@ -223,7 +248,7 @@ export default function ScheduleInputs() {
         <div className="label">
           <span>&nbsp;</span>
           <button type="submit" disabled={loading}>
-            {loading ? 'Calculating…' : 'Calculate'}
+            {loading ? 'Calculating...' : 'Calculate'}
           </button>
         </div>
       </form>
@@ -240,7 +265,7 @@ export default function ScheduleInputs() {
           <StatCard label="Convexity" value={result.convexity} decimals={6} />
         </div>
       )}
-      <CashflowTable cashflows={cashflows} filename="schedule-cashflows.csv" />
+      <CashflowTable cashflows={cashflows} filename="schedule-cashflows.csv" minDate={tableMinDate} />
     </section>
   );
 }
