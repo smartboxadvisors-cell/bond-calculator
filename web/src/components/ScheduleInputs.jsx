@@ -38,6 +38,7 @@ function clampFourDigitYear(value) {
 
 export default function ScheduleInputs() {
   const [form, setForm] = useState({
+    isin: '',
     face: 100,
     couponRate: 7.5,
     freqMonths: 6,
@@ -72,6 +73,14 @@ export default function ScheduleInputs() {
     if (name === 'maturityDate') {
       const sanitized = clampFourDigitYear(value);
       setForm(prev => ({ ...prev, [name]: sanitized }));
+      return;
+    }
+    if (name === 'isin') {
+      const sanitized = String(value || '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 12);
+      setForm(prev => ({ ...prev, isin: sanitized }));
       return;
     }
     setForm(prev => ({ ...prev, [name]: value }));
@@ -141,6 +150,18 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Face Amount</span>
           <input type="number" name="face" value={form.face} onChange={handleChange} min="0" step="0.01" />
+        </label>
+        <label className="label">
+          <span>ISIN</span>
+          <input
+            type="text"
+            name="isin"
+            value={form.isin}
+            onChange={handleChange}
+            placeholder="Optional identifier"
+            maxLength={12}
+          />
+          <span className="helper-text">Up to 12 characters (A-Z, 0-9).</span>
         </label>
         <label className="label">
           <span>Coupon Rate (%)</span>
