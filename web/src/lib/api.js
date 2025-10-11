@@ -37,6 +37,14 @@ export function ytmSchedule(payload) {
   return request('/api/ytmSchedule', { method: 'POST', body: payload });
 }
 
+export function getScheduleByIsin(isin) {
+  const value = String(isin || '').trim();
+  if (!value) {
+    return Promise.reject(new Error('ISIN is required'));
+  }
+  return request(`/api/schedule/${encodeURIComponent(value)}`);
+}
+
 export function priceDirect(payload) {
   return request('/api/priceDirect', { method: 'POST', body: payload });
 }

@@ -27,6 +27,99 @@ function sanitizeYield(value) {
   return Math.abs(num) > 1.5 ? num / 100 : num;
 }
 
+function sanitizeIsin(value) {
+  if (!value) return '';
+  return String(value).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+}
+
+function sanitizeFormSnapshot(form = {}) {
+  if (!form || typeof form !== 'object') return null;
+  const snapshot = { ...form };
+  snapshot.isin = sanitizeIsin(snapshot.isin || snapshot.ISIN);
+  const dateFields = ['issueDate', 'maturityDate', 'settlementDate'];
+  for (const field of dateFields) {
+    if (!snapshot[field]) continue;
+    try {
+      snapshot[field] = toISO(snapshot[field]);
+    } catch (err) {
+      snapshot[field] = String(snapshot[field]);
+    }
+  }
+  return snapshot;
+}
+
+function sanitizeScheduleSnapshot(schedule = {}) {
+  if (!schedule || typeof schedule !== 'object') return null;
+  const snapshot = { ...schedule };
+  snapshot.isin = sanitizeIsin(snapshot.isin);
+  const dateFields = ['issueDate', 'maturityDate', 'settlementDate'];
+  for (const field of dateFields) {
+    if (!snapshot[field]) continue;
+    try {
+      snapshot[field] = toISO(snapshot[field]);
+    } catch (err) {
+      snapshot[field] = String(snapshot[field]);
+    }
+  }
+  if (snapshot.freqMonths !== undefined) {
+    snapshot.freqMonths = Number(snapshot.freqMonths);
+  }
+  if (snapshot.settlementLag !== undefined) {
+    snapshot.settlementLag = Number(snapshot.settlementLag);
+  }
+  if (snapshot.redemptionPct !== undefined) {
+    snapshot.redemptionPct = Number(snapshot.redemptionPct);
+  }
+  if (snapshot.couponRate !== undefined) {
+    snapshot.couponRate = Number(snapshot.couponRate);
+  }
+  if (snapshot.face !== undefined) {
+    snapshot.face = Number(snapshot.face);
+  }
+  return snapshot;
+}
+
+async function upsertScheduleConfig(isin, { form, schedule, result } = {}) {
+  const safeIsin = sanitizeIsin(isin);
+  if (!safeIsin) return null;
+
+  const formSnapshot = sanitizeFormSnapshot(form);
+  const scheduleSnapshot = sanitizeScheduleSnapshot(schedule);
+  const resultSnapshot = result ? { ...result } : null;
+
+  const update = {
+    $set: {
+      scheduleConfig: {
+        form: formSnapshot,
+        schedule: scheduleSnapshot,
+        result: resultSnapshot,
+        updatedAt: new Date()
+      }
+    },
+    $setOnInsert: { isin: safeIsin }
+  };
+
+  const faceCandidates = [
+    scheduleSnapshot?.face,
+    formSnapshot?.face
+  ].map(candidate => {
+    const num = Number(candidate);
+    return Number.isFinite(num) && num > 0 ? num : null;
+  });
+  const faceValue = faceCandidates.find(value => value !== null);
+  if (Number.isFinite(faceValue)) {
+    update.$set.face = faceValue;
+  }
+
+  await Bond.findOneAndUpdate(
+    { isin: safeIsin },
+    update,
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return safeIsin;
+}
+
 function parseCashflows(cashflows = []) {
   return (cashflows || [])
     .map(item => ({
@@ -95,6 +188,31 @@ app.get('/api/bonds', async (req, res) => {
   }
 });
 
+app.get('/api/schedule/:isin', async (req, res) => {
+  try {
+    const isin = sanitizeIsin(req.params.isin);
+    if (!isin) {
+      return res.status(400).json({ error: 'Invalid ISIN' });
+    }
+
+    const bond = await Bond.findOne({ isin }).lean();
+    if (!bond?.scheduleConfig) {
+      return res.status(404).json({ error: 'Schedule not found for supplied ISIN' });
+    }
+
+    const { scheduleConfig } = bond;
+    res.json({
+      isin,
+      form: scheduleConfig.form || null,
+      schedule: scheduleConfig.schedule || null,
+      result: scheduleConfig.result || null,
+      updatedAt: scheduleConfig.updatedAt
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/uploadCF/:isin', upload.single('file'), async (req, res) => {
   try {
     const { isin } = req.params;
@@ -138,7 +256,13 @@ app.post('/api/uploadCF/:isin', upload.single('file'), async (req, res) => {
 
 app.post('/api/priceSchedule', async (req, res) => {
   try {
-    const { schedule = {}, settlementDate, quote = {} } = req.body || {};
+    const {
+      schedule = {},
+      settlementDate,
+      quote = {},
+      formSnapshot = null,
+      mode = 'price-from-yield'
+    } = req.body || {};
     const {
       dayCount = 'ACT365F',
       compounding = 'ANNUAL',
@@ -146,8 +270,11 @@ app.post('/api/priceSchedule', async (req, res) => {
       businessRoll = 'FOLLOWING'
     } = schedule;
 
+    const sanitizedMode = typeof mode === 'string' ? mode : 'price-from-yield';
+    const scheduleInput = { ...schedule, isin: sanitizeIsin(schedule.isin || formSnapshot?.isin) };
+
     const settlementISO = determineSettlement(settlementDate, settlementLag, businessRoll);
-    const scheduleData = buildSchedule(schedule);
+    const scheduleData = buildSchedule(scheduleInput);
     const flows = scheduleData.cashflows;
 
     if (!flows.length) {
@@ -165,7 +292,9 @@ app.post('/api/priceSchedule', async (req, res) => {
     const accrued = accruedInterest(dc, last, settlementISO, next, couponForPeriod);
     const clean = risk.price - accrued;
 
-    res.json({
+    const scheduleIsin = scheduleInput.isin;
+    const responsePayload = {
+      isin: scheduleIsin,
       dirtyPer100: Number(risk.price.toFixed(8)),
       cleanPer100: Number(clean.toFixed(8)),
       accruedPer100: Number(accrued.toFixed(8)),
@@ -176,7 +305,41 @@ app.post('/api/priceSchedule', async (req, res) => {
       convexity: risk.convexity,
       cashflows: flows,
       settlementDate: settlementISO
-    });
+    };
+
+    if (scheduleIsin) {
+      const fallbackForm = formSnapshot && typeof formSnapshot === 'object'
+        ? formSnapshot
+        : {
+            isin: scheduleIsin,
+            face: schedule.face,
+            couponRate: schedule.couponRate,
+            freqMonths: schedule.freqMonths,
+            issueDate: schedule.issueDate,
+            maturityDate: schedule.maturityDate,
+            settlementDate: settlementDate || settlementISO,
+            settlementLag: schedule.settlementLag,
+            businessRoll: schedule.businessRoll,
+            dayCount: schedule.dayCount,
+            compounding: schedule.compounding,
+            redemptionPct: schedule.redemptionPct,
+            mode: sanitizedMode,
+            yieldInput: quote.yield,
+            priceInput: quote.pricePer100 ?? quote.price
+          };
+
+      try {
+        await upsertScheduleConfig(scheduleIsin, {
+          form: fallbackForm,
+          schedule: { ...scheduleInput, settlementDate: settlementISO },
+          result: responsePayload
+        });
+      } catch (persistErr) {
+        console.error('Failed to persist price schedule for', scheduleIsin, persistErr);
+      }
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -184,7 +347,13 @@ app.post('/api/priceSchedule', async (req, res) => {
 
 app.post('/api/ytmSchedule', async (req, res) => {
   try {
-    const { schedule = {}, settlementDate, quote = {} } = req.body || {};
+    const {
+      schedule = {},
+      settlementDate,
+      quote = {},
+      formSnapshot = null,
+      mode = 'yield-from-price'
+    } = req.body || {};
     const {
       dayCount = 'ACT365F',
       compounding = 'ANNUAL',
@@ -192,8 +361,11 @@ app.post('/api/ytmSchedule', async (req, res) => {
       businessRoll = 'FOLLOWING'
     } = schedule;
 
+    const sanitizedMode = typeof mode === 'string' ? mode : 'yield-from-price';
+    const scheduleInput = { ...schedule, isin: sanitizeIsin(schedule.isin || formSnapshot?.isin) };
+
     const settlementISO = determineSettlement(settlementDate, settlementLag, businessRoll);
-    const scheduleData = buildSchedule(schedule);
+    const scheduleData = buildSchedule(scheduleInput);
     const flows = scheduleData.cashflows;
 
     if (!flows.length) {
@@ -215,7 +387,9 @@ app.post('/api/ytmSchedule', async (req, res) => {
     const accrued = accruedInterest(dc, last, settlementISO, next, couponForPeriod);
     const clean = risk.price - accrued;
 
-    res.json({
+    const scheduleIsin = scheduleInput.isin;
+    const responsePayload = {
+      isin: scheduleIsin,
       dirtyPer100: Number(risk.price.toFixed(8)),
       cleanPer100: Number(clean.toFixed(8)),
       accruedPer100: Number(accrued.toFixed(8)),
@@ -226,7 +400,41 @@ app.post('/api/ytmSchedule', async (req, res) => {
       convexity: risk.convexity,
       cashflows: flows,
       settlementDate: settlementISO
-    });
+    };
+
+    if (scheduleIsin) {
+      const fallbackForm = formSnapshot && typeof formSnapshot === 'object'
+        ? formSnapshot
+        : {
+            isin: scheduleIsin,
+            face: schedule.face,
+            couponRate: schedule.couponRate,
+            freqMonths: schedule.freqMonths,
+            issueDate: schedule.issueDate,
+            maturityDate: schedule.maturityDate,
+            settlementDate: settlementDate || settlementISO,
+            settlementLag: schedule.settlementLag,
+            businessRoll: schedule.businessRoll,
+            dayCount: schedule.dayCount,
+            compounding: schedule.compounding,
+            redemptionPct: schedule.redemptionPct,
+            mode: sanitizedMode,
+            yieldInput: quote.yield,
+            priceInput: quote.pricePer100 ?? quote.price
+          };
+
+      try {
+        await upsertScheduleConfig(scheduleIsin, {
+          form: fallbackForm,
+          schedule: { ...scheduleInput, settlementDate: settlementISO },
+          result: responsePayload
+        });
+      } catch (persistErr) {
+        console.error('Failed to persist YTM schedule for', scheduleIsin, persistErr);
+      }
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

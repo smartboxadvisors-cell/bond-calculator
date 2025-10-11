@@ -1,5 +1,5 @@
 import { exportCSV } from '../lib/export.js';
-import { formatDisplayDate, endOfMonth, toISO } from '../lib/dates.js';
+import { formatDisplayDate, toISO } from '../lib/dates.js';
 
 export default function CashflowTable({
   cashflows = [],
@@ -11,21 +11,38 @@ export default function CashflowTable({
 
   const normalizedCashflows = cashflows
     .map(row => {
-      if (!row?.date) {
+      if (!row) return null;
+      const baseDate = row.date ?? row.displayDate;
+      if (!baseDate) return null;
+      let isoDate;
+      try {
+        isoDate = toISO(baseDate);
+      } catch {
         return null;
       }
-      const normalizedDate = endOfMonth(row.date);
       const amount = Number(row.amount);
       if (!Number.isFinite(amount)) {
         return null;
       }
+
+      let displayISO = isoDate;
+      if (row.displayDate) {
+        try {
+          displayISO = toISO(row.displayDate);
+        } catch {
+          displayISO = isoDate;
+        }
+      }
+
       return {
         ...row,
-        date: normalizedDate,
+        date: isoDate,
+        displayDate: displayISO,
         amount
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const filteredCashflows = cutoffISO
     ? normalizedCashflows.filter(row => row.date >= cutoffISO)
@@ -39,7 +56,7 @@ export default function CashflowTable({
     exportCSV(
       filename,
       filteredCashflows.map(row => ({
-        date: formatDisplayDate(row.date),
+        date: formatDisplayDate(row.displayDate || row.date),
         amount: row.amount.toFixed(6)
       }))
     );
@@ -64,9 +81,9 @@ export default function CashflowTable({
           </tr>
         </thead>
         <tbody>
-          {filteredCashflows.map(({ date, amount }, idx) => (
+          {filteredCashflows.map(({ date, displayDate, amount }, idx) => (
             <tr key={`${date}-${idx}`}>
-              <td>{formatDisplayDate(date)}</td>
+              <td>{formatDisplayDate(displayDate || date)}</td>
               <td>{amount.toFixed(6)}</td>
             </tr>
           ))}

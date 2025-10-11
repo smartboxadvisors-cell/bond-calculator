@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { priceSchedule, ytmSchedule } from '../lib/api.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { getScheduleByIsin, priceSchedule, ytmSchedule } from '../lib/api.js';
 import { addDays, businessDaySequence, formatDisplayDate, nextBusinessDay } from '../lib/dates.js';
 import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
@@ -23,6 +23,26 @@ const FREQUENCY_DESCRIPTIONS = {
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
 const DAY_COUNTS = ['ACT365F', 'ACT360', '30360US'];
 const COMPOUNDING = ['ANNUAL', 'SEMI', 'STREET'];
+const ARROW = '\u2192';
+const MAX_ISIN_LENGTH = 12;
+
+const DEFAULT_FORM = {
+  isin: '',
+  face: 100,
+  couponRate: 7.5,
+  freqMonths: 6,
+  issueDate: defaultIssue,
+  maturityDate: defaultMaturity,
+  settlementDate: defaultSettlement,
+  settlementLag: 0,
+  businessRoll: 'FOLLOWING',
+  dayCount: 'ACT365F',
+  compounding: 'ANNUAL',
+  redemptionPct: 100,
+  mode: 'price-from-yield',
+  yieldInput: 7.2,
+  priceInput: 100
+};
 
 function toRate(value) {
   const num = Number(value);
@@ -36,37 +56,136 @@ function clampFourDigitYear(value) {
   return sanitized.length > 10 ? sanitized.slice(0, 10) : sanitized;
 }
 
+function sanitizeIsin(value) {
+  if (!value) return '';
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, MAX_ISIN_LENGTH);
+}
+
+function normalizeFormSnapshot(snapshot = {}) {
+  const merged = { ...DEFAULT_FORM, ...snapshot };
+  merged.isin = sanitizeIsin(snapshot.isin || merged.isin);
+
+  const dateFields = ['issueDate', 'maturityDate', 'settlementDate'];
+  for (const field of dateFields) {
+    if (merged[field]) {
+      merged[field] = clampFourDigitYear(merged[field]);
+    }
+  }
+
+  const numericFields = ['face', 'couponRate', 'freqMonths', 'settlementLag', 'redemptionPct', 'yieldInput', 'priceInput'];
+  for (const field of numericFields) {
+    if (merged[field] !== undefined && merged[field] !== null && merged[field] !== '') {
+      const num = Number(merged[field]);
+      if (Number.isFinite(num)) {
+        merged[field] = field === 'freqMonths' || field === 'settlementLag' ? num : Number(num.toFixed(8));
+      }
+    }
+  }
+
+  return merged;
+}
+
 export default function ScheduleInputs() {
-  const [form, setForm] = useState({
-    isin: '',
-    face: 100,
-    couponRate: 7.5,
-    freqMonths: 6,
-    issueDate: defaultIssue,
-    maturityDate: defaultMaturity,
-    settlementDate: defaultSettlement,
-    settlementLag: 0,
-    businessRoll: 'FOLLOWING',
-    dayCount: 'ACT365F',
-    compounding: 'ANNUAL',
-    redemptionPct: 100,
-    mode: 'price-from-yield',
-    yieldInput: 7.2,
-    priceInput: 100
-  });
+  const [form, setForm] = useState(() => ({ ...DEFAULT_FORM }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [cashflows, setCashflows] = useState([]);
+  const [prefillStatus, setPrefillStatus] = useState('');
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const fetchedIsinRef = useRef('');
 
-  const settlementOptions = defaultSettlementOptions;
+  const settlementOptions = useMemo(() => {
+    if (!form.settlementDate) {
+      return defaultSettlementOptions;
+    }
+    if (defaultSettlementOptions.includes(form.settlementDate)) {
+      return defaultSettlementOptions;
+    }
+    return [form.settlementDate, ...defaultSettlementOptions];
+  }, [form.settlementDate]);
 
   useEffect(() => {
     if (!settlementOptions.length) return;
-    if (!form.settlementDate || !settlementOptions.includes(form.settlementDate)) {
+    if (!form.settlementDate) {
       setForm(prev => ({ ...prev, settlementDate: settlementOptions[0] }));
     }
   }, [form.settlementDate, settlementOptions]);
+
+  useEffect(() => {
+    const currentIsin = sanitizeIsin(form.isin);
+    if (!currentIsin || currentIsin.length < MAX_ISIN_LENGTH) {
+      if (!currentIsin) {
+        setPrefillStatus('');
+      }
+      if (prefillLoading) {
+        setPrefillLoading(false);
+      }
+      fetchedIsinRef.current = '';
+      return;
+    }
+
+    if (fetchedIsinRef.current === currentIsin) {
+      return;
+    }
+
+    let cancelled = false;
+    fetchedIsinRef.current = currentIsin;
+    setPrefillLoading(true);
+    setPrefillStatus('Looking up saved schedule...');
+
+    getScheduleByIsin(currentIsin)
+      .then(data => {
+        if (cancelled) return;
+        fetchedIsinRef.current = currentIsin;
+        if (data?.form) {
+          const normalized = normalizeFormSnapshot({ ...data.form, isin: currentIsin });
+          if (!normalized.settlementDate) {
+            normalized.settlementDate = data.result?.settlementDate || DEFAULT_FORM.settlementDate;
+          }
+          setForm(prev => ({ ...prev, ...normalized }));
+          if (data.result) {
+            setResult(data.result);
+            setCashflows(data.result.cashflows || []);
+            setPrefillStatus('Loaded saved schedule for this ISIN.');
+          } else {
+            setResult(null);
+            setCashflows([]);
+            setPrefillStatus('Loaded saved schedule. Please calculate to refresh results.');
+          }
+          setError('');
+        } else {
+          setPrefillStatus('No saved schedule found. Enter details to calculate.');
+          setResult(null);
+          setCashflows([]);
+        }
+      })
+      .catch(err => {
+        if (cancelled) return;
+        fetchedIsinRef.current = currentIsin;
+        const message = err?.message || 'Failed to load saved schedule.';
+        if (message.toLowerCase().includes('not found')) {
+          setPrefillStatus('No saved schedule found. Enter details to calculate.');
+        } else {
+          setPrefillStatus(message);
+        }
+        setError('');
+        setResult(null);
+        setCashflows([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPrefillLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.isin]);
 
   const handleChange = event => {
     const { name, value } = event.target;
@@ -76,10 +195,7 @@ export default function ScheduleInputs() {
       return;
     }
     if (name === 'isin') {
-      const sanitized = String(value || '')
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '')
-        .slice(0, 12);
+      const sanitized = sanitizeIsin(value);
       setForm(prev => ({ ...prev, isin: sanitized }));
       return;
     }
@@ -102,6 +218,9 @@ export default function ScheduleInputs() {
     setLoading(true);
     setError('');
     try {
+      const sanitizedIsin = sanitizeIsin(form.isin);
+      const formSnapshot = normalizeFormSnapshot({ ...form, isin: sanitizedIsin });
+
       const payload = {
         schedule: {
           face: Number(form.face),
@@ -113,9 +232,12 @@ export default function ScheduleInputs() {
           businessRoll: form.businessRoll,
           dayCount: form.dayCount,
           compounding: form.compounding,
-          redemptionPct: Number(form.redemptionPct)
+          redemptionPct: Number(form.redemptionPct),
+          isin: sanitizedIsin
         },
-        settlementDate: form.settlementDate
+        settlementDate: form.settlementDate,
+        formSnapshot,
+        mode: form.mode
       };
 
       let data;
@@ -128,6 +250,10 @@ export default function ScheduleInputs() {
       }
       setResult(data);
       setCashflows(data.cashflows || []);
+      if (sanitizedIsin) {
+        fetchedIsinRef.current = sanitizedIsin;
+        setPrefillStatus('Schedule saved for this ISIN.');
+      }
     } catch (err) {
       setError(err.message);
       setResult(null);
@@ -157,12 +283,18 @@ export default function ScheduleInputs() {
             type="text"
             name="isin"
             value={form.isin}
-            onChange={handleChange}
-            placeholder="Optional identifier"
-            maxLength={12}
-          />
-          <span className="helper-text">Up to 12 characters (A-Z, 0-9).</span>
-        </label>
+          onChange={handleChange}
+          placeholder="Optional identifier"
+          maxLength={12}
+        />
+        <span className="helper-text">Up to 12 characters (A-Z, 0-9).</span>
+        {prefillLoading && form.isin.length === MAX_ISIN_LENGTH && (
+          <span className="helper-text">Looking up saved schedule...</span>
+        )}
+        {!prefillLoading && prefillStatus && form.isin.length === MAX_ISIN_LENGTH && (
+          <span className="helper-text">{prefillStatus}</span>
+        )}
+      </label>
         <label className="label">
           <span>Coupon Rate (%)</span>
           <input type="number" name="couponRate" value={form.couponRate} onChange={handleChange} step="0.01" />
@@ -256,8 +388,8 @@ export default function ScheduleInputs() {
         <label className="label">
           <span>Mode</span>
           <select name="mode" value={form.mode} onChange={handleChange}>
-            <option value="price-from-yield">Price -> Yield</option>
-            <option value="yield-from-price">Yield -> Price</option>
+            <option value="price-from-yield">{`Price ${ARROW} Yield`}</option>
+            <option value="yield-from-price">{`Yield ${ARROW} Price`}</option>
           </select>
         </label>
         {showYieldInput ? (

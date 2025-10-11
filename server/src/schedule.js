@@ -35,17 +35,18 @@ export function buildSchedule({
   let safety = 0;
   while (compareISO(cursorISO, maturityISO) < 0 && safety < 600) {
     safety += 1;
-    const nextMonthEnd = endOfMonth(addMonths(cursorISO, frequencyMonths, anchorDay));
-    if (compareISO(nextMonthEnd, maturityISO) >= 0) {
-      couponDates.push(endOfMonth(maturityISO));
+    const nextCandidate = addMonths(cursorISO, frequencyMonths, anchorDay);
+    const nextPeriodEnd = endOfMonth(nextCandidate);
+    if (compareISO(nextPeriodEnd, maturityISO) >= 0) {
+      couponDates.push(maturityISO);
       break;
     }
-    couponDates.push(nextMonthEnd);
-    cursorISO = nextMonthEnd;
+    couponDates.push(nextPeriodEnd);
+    cursorISO = nextPeriodEnd;
   }
 
   if (couponDates.length === 0) {
-    couponDates.push(endOfMonth(maturityISO));
+    couponDates.push(maturityISO);
   }
 
   const periods = [];
@@ -63,10 +64,12 @@ export function buildSchedule({
     periods.push({
       start: periodStartISO,
       end: periodEndISO,
+      displayDate: periodEndISO,
       accrualFactor: Number(accrualFactor.toFixed(12)),
       couponAmount,
       redemptionAmount: periodRedemption,
-      totalAmount
+      totalAmount,
+      isMaturity: isFinal
     });
 
     periodStartISO = periodEndISO;
@@ -74,7 +77,11 @@ export function buildSchedule({
 
   const cashflows = periods.map(period => ({
     date: period.end,
-    amount: period.totalAmount
+    amount: period.totalAmount,
+    displayDate: period.displayDate,
+    couponAmount: period.couponAmount,
+    redemptionAmount: period.redemptionAmount,
+    isMaturity: period.isMaturity
   }));
 
   return {
