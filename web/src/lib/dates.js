@@ -35,24 +35,25 @@ function daysInMonth(year, monthIndexZero) {
   return new Date(Date.UTC(year, monthIndexZero + 1, 0)).getUTCDate();
 }
 
-export function addMonths(value, months) {
+export function addMonths(value, months, anchorDay) {
   const date = parseDate(value);
-  const day = date.getUTCDate();
+  const referenceDay = Number.isFinite(anchorDay) ? Number(anchorDay) : date.getUTCDate();
   date.setUTCDate(1);
   date.setUTCMonth(date.getUTCMonth() + Number(months || 0));
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const lastDay = daysInMonth(year, month);
-  date.setUTCDate(Math.min(day, lastDay));
+  date.setUTCDate(Math.min(referenceDay, lastDay));
   return toISO(date);
 }
 
 export function buildDates(start, freqMonths, count) {
   const total = Math.max(0, Number(count || 0));
   const dates = [];
+  const anchorDay = parseDate(start).getUTCDate();
   let current = toISO(start);
   for (let i = 0; i < total; i += 1) {
-    current = addMonths(current, freqMonths);
+    current = addMonths(current, freqMonths, anchorDay);
     dates.push(current);
   }
   return dates;

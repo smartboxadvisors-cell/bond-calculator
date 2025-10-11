@@ -54,15 +54,15 @@ export function addDays(value, days) {
   return toISO(date);
 }
 
-export function addMonths(value, months) {
+export function addMonths(value, months, anchorDay) {
   const date = coerceDate(value);
-  const day = date.getUTCDate();
+  const referenceDay = Number.isFinite(anchorDay) ? Number(anchorDay) : date.getUTCDate();
   date.setUTCDate(1);
   date.setUTCMonth(date.getUTCMonth() + Number(months || 0));
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const lastDay = daysInMonth(year, month);
-  date.setUTCDate(Math.min(day, lastDay));
+  date.setUTCDate(Math.min(referenceDay, lastDay));
   return toISO(date);
 }
 

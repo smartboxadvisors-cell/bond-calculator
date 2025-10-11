@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { priceDirect, ytmDirect, uploadCF } from '../lib/api.js';
-import { toISO, buildDates } from '../lib/dates.js';
+import { toISO, buildDates, businessDaySequence, formatDisplayDate, nextBusinessDay } from '../lib/dates.js';
 import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
 
@@ -26,7 +26,10 @@ function fallbackCashflows(bond, settlementDate) {
 export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = false }) {
   const todayISO = new Date().toISOString().slice(0, 10);
   const [selectedIsin, setSelectedIsin] = useState('');
-  const [settlementDate, setSettlementDate] = useState(todayISO);
+  const [settlementDate, setSettlementDate] = useState(() => {
+    const options = businessDaySequence(todayISO, 7);
+    return options[0] || nextBusinessDay(todayISO);
+  });
   const [dayCount, setDayCount] = useState('ACT365F');
   const [compounding, setCompounding] = useState('ANNUAL');
   const [mode, setMode] = useState('price-from-yield');
@@ -39,6 +42,20 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   const [customCashflows, setCustomCashflows] = useState({});
   const [calculating, setCalculating] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const settlementOptions = useMemo(() => businessDaySequence(todayISO, 7), [todayISO]);
+
+  useEffect(() => {
+    setSettlementDate(prev => {
+      if (!settlementOptions.length) {
+        return '';
+      }
+      if (prev && settlementOptions.includes(prev)) {
+        return prev;
+      }
+      return settlementOptions[0];
+    });
+  }, [settlementOptions]);
 
   const bondMap = useMemo(() => {
     const map = {};
@@ -157,7 +174,14 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         </label>
         <label className="label">
           <span>Settlement Date</span>
-          <input type="date" value={settlementDate} onChange={event => setSettlementDate(event.target.value)} lang="en-GB" />
+          <select value={settlementDate || ''} onChange={event => setSettlementDate(event.target.value)} disabled={!settlementOptions.length}>
+            {settlementOptions.map(date => (
+              <option key={date} value={date}>
+                {formatDisplayDate(date)}
+              </option>
+            ))}
+          </select>
+          <span className="helper-text">Next 7 business days.</span>
         </label>
         <label className="label">
           <span>Day-count</span>

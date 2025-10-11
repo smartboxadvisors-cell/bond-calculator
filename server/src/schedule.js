@@ -1,4 +1,4 @@
-﻿import { toISO, rollBusiness, addMonths, compareISO } from './daycount.js';
+﻿import { toISO, rollBusiness, addMonths, compareISO, fromISO } from './daycount.js';
 
 function sanitizeNumber(value, fallback = 0) {
   const num = Number(value);
@@ -29,10 +29,11 @@ export function buildSchedule({
   // Build coupon dates advancing from issue until maturity (inclusive)
   const couponDates = [];
   let cursorISO = issueISO;
+  const anchorDay = fromISO(issueISO).getUTCDate();
   let safety = 0;
   while (compareISO(cursorISO, maturityISO) < 0 && safety < 600) {
     safety += 1;
-    const nextUnrolled = addMonths(cursorISO, frequencyMonths);
+    const nextUnrolled = addMonths(cursorISO, frequencyMonths, anchorDay);
     if (compareISO(nextUnrolled, maturityISO) >= 0) {
       couponDates.push(rollBusiness(maturityISO, roll));
       break;
