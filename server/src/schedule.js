@@ -1,4 +1,4 @@
-﻿import { toISO, rollBusiness, addMonths, compareISO, fromISO } from './daycount.js';
+﻿import { toISO, addMonths, compareISO, fromISO, endOfMonth } from './daycount.js';
 
 function sanitizeNumber(value, fallback = 0) {
   const num = Number(value);
@@ -21,8 +21,6 @@ export function buildSchedule({
 
   const issueISO = toISO(issueDate);
   const maturityISO = toISO(maturityDate);
-  const roll = (businessRoll || 'FOLLOWING').toUpperCase();
-
   const couponPerPeriod = faceValue * rate * (frequencyMonths / 12);
   const redemptionAmount = faceValue * (redemptionPercent / 100);
 
@@ -33,17 +31,17 @@ export function buildSchedule({
   let safety = 0;
   while (compareISO(cursorISO, maturityISO) < 0 && safety < 600) {
     safety += 1;
-    const nextUnrolled = addMonths(cursorISO, frequencyMonths, anchorDay);
-    if (compareISO(nextUnrolled, maturityISO) >= 0) {
-      couponDates.push(rollBusiness(maturityISO, roll));
+    const nextMonthEnd = endOfMonth(addMonths(cursorISO, frequencyMonths, anchorDay));
+    if (compareISO(nextMonthEnd, maturityISO) >= 0) {
+      couponDates.push(endOfMonth(maturityISO));
       break;
     }
-    couponDates.push(rollBusiness(nextUnrolled, roll));
-    cursorISO = nextUnrolled;
+    couponDates.push(nextMonthEnd);
+    cursorISO = nextMonthEnd;
   }
 
   if (couponDates.length === 0) {
-    couponDates.push(rollBusiness(maturityISO, roll));
+    couponDates.push(endOfMonth(maturityISO));
   }
 
   const cashflows = couponDates.map((date, index) => {

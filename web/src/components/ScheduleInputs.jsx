@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { priceSchedule, ytmSchedule } from '../lib/api.js';
-import { businessDaySequence, formatDisplayDate, nextBusinessDay } from '../lib/dates.js';
+import { addDays, businessDaySequence, formatDisplayDate, nextBusinessDay } from '../lib/dates.js';
 import StatCard from './StatCard.jsx';
 import CashflowTable from './CashflowTable.jsx';
 
 const todayISO = new Date().toISOString().slice(0, 10);
-const defaultIssue = todayISO;
+const maxIssueDate = addDays(todayISO, -1);
+const defaultIssue = maxIssueDate;
 const defaultMaturity = new Date(new Date().setFullYear(new Date().getFullYear() + 5))
   .toISOString()
   .slice(0, 10);
-const defaultSettlementOptions = businessDaySequence(defaultIssue, 7);
-const defaultSettlement = defaultSettlementOptions[0] || nextBusinessDay(defaultIssue);
+const defaultSettlementOptions = businessDaySequence(todayISO, 7, { includeStart: true });
+const defaultSettlement = defaultSettlementOptions[0] || nextBusinessDay(todayISO);
 
 const FREQUENCIES = [12, 6, 3, 1];
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
@@ -45,22 +46,14 @@ export default function ScheduleInputs() {
   const [result, setResult] = useState(null);
   const [cashflows, setCashflows] = useState([]);
 
-  const settlementOptions = useMemo(() => {
-    if (!form.issueDate) return [];
-    return businessDaySequence(form.issueDate, 7);
-  }, [form.issueDate]);
+  const settlementOptions = defaultSettlementOptions;
 
   useEffect(() => {
-    if (!settlementOptions.length) {
-      if (form.settlementDate) {
-        setForm(prev => ({ ...prev, settlementDate: '' }));
-      }
-      return;
-    }
+    if (!settlementOptions.length) return;
     if (!form.settlementDate || !settlementOptions.includes(form.settlementDate)) {
       setForm(prev => ({ ...prev, settlementDate: settlementOptions[0] }));
     }
-  }, [settlementOptions, form.settlementDate]);
+  }, [form.settlementDate, settlementOptions]);
 
   const handleChange = event => {
     const { name, value } = event.target;
@@ -70,19 +63,12 @@ export default function ScheduleInputs() {
   const handleIssueChange = event => {
     const { value } = event.target;
     if (!value) {
-      setForm(prev => ({ ...prev, issueDate: '', settlementDate: '' }));
+      setForm(prev => ({ ...prev, issueDate: '' }));
       return;
     }
 
-    const nextValue = value > todayISO ? todayISO : value;
-    const options = businessDaySequence(nextValue, 7);
-    setForm(prev => {
-      const next = { ...prev, issueDate: nextValue };
-      if (!options.includes(prev.settlementDate)) {
-        next.settlementDate = options[0] || '';
-      }
-      return next;
-    });
+    const nextValue = value > maxIssueDate ? maxIssueDate : value;
+    setForm(prev => ({ ...prev, issueDate: nextValue }));
   };
 
   const handleSubmit = async event => {
@@ -155,7 +141,7 @@ export default function ScheduleInputs() {
         </label>
         <label className="label">
           <span>Issue Date</span>
-          <input type="date" name="issueDate" value={form.issueDate} onChange={handleIssueChange} max={todayISO} lang="en-GB" />
+          <input type="date" name="issueDate" value={form.issueDate} onChange={handleIssueChange} max={maxIssueDate} lang="en-GB" />
         </label>
         <label className="label">
           <span>Maturity Date</span>
@@ -175,7 +161,7 @@ export default function ScheduleInputs() {
               </option>
             ))}
           </select>
-          <span className="helper-text">Next 7 business days after the issue date.</span>
+          <span className="helper-text">Next 7 business days starting today.</span>
         </label>
         <label className="label">
           <span>Settlement Lag (days)</span>

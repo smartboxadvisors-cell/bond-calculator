@@ -35,6 +35,14 @@ function daysInMonth(year, monthIndexZero) {
   return new Date(Date.UTC(year, monthIndexZero + 1, 0)).getUTCDate();
 }
 
+export function endOfMonth(value) {
+  const date = parseDate(value);
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  date.setUTCDate(0);
+  return toISO(date);
+}
+
 export function addMonths(value, months, anchorDay) {
   const date = parseDate(value);
   const referenceDay = Number.isFinite(anchorDay) ? Number(anchorDay) : date.getUTCDate();
@@ -53,7 +61,7 @@ export function buildDates(start, freqMonths, count) {
   const anchorDay = parseDate(start).getUTCDate();
   let current = toISO(start);
   for (let i = 0; i < total; i += 1) {
-    current = addMonths(current, freqMonths, anchorDay);
+    current = endOfMonth(addMonths(current, freqMonths, anchorDay));
     dates.push(current);
   }
   return dates;
@@ -82,6 +90,10 @@ export function nextBusinessDay(value, direction = 1) {
 
 export function ensureBusinessDay(value, direction = 1) {
   return isBusinessDay(value) ? toISO(value) : nextBusinessDay(value, direction);
+}
+
+export function previousBusinessDay(value) {
+  return nextBusinessDay(value, -1);
 }
 
 export function businessDaySequence(start, count, options = {}) {

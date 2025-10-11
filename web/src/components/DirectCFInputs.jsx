@@ -27,7 +27,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   const todayISO = new Date().toISOString().slice(0, 10);
   const [selectedIsin, setSelectedIsin] = useState('');
   const [settlementDate, setSettlementDate] = useState(() => {
-    const options = businessDaySequence(todayISO, 7);
+    const options = businessDaySequence(todayISO, 7, { includeStart: true });
     return options[0] || nextBusinessDay(todayISO);
   });
   const [dayCount, setDayCount] = useState('ACT365F');
@@ -43,7 +43,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
   const [calculating, setCalculating] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const settlementOptions = useMemo(() => businessDaySequence(todayISO, 7), [todayISO]);
+  const settlementOptions = useMemo(() => businessDaySequence(todayISO, 7, { includeStart: true }), [todayISO]);
 
   useEffect(() => {
     setSettlementDate(prev => {
@@ -181,7 +181,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
               </option>
             ))}
           </select>
-          <span className="helper-text">Next 7 business days.</span>
+          <span className="helper-text">Next 7 business days starting today.</span>
         </label>
         <label className="label">
           <span>Day-count</span>

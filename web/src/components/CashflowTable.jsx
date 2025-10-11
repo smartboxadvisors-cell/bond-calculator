@@ -1,13 +1,23 @@
-﻿import { exportCSV } from '../lib/export.js';
-import { formatDisplayDate } from '../lib/dates.js';
+import { exportCSV } from '../lib/export.js';
+import { formatDisplayDate, endOfMonth } from '../lib/dates.js';
 
 export default function CashflowTable({ cashflows = [], title = 'Cashflows', filename = 'cashflows.csv' }) {
   if (!cashflows.length) {
     return null;
   }
 
+  const normalizedCashflows = cashflows.map(row => {
+    if (!row?.date) {
+      return row;
+    }
+    return {
+      ...row,
+      date: endOfMonth(row.date)
+    };
+  });
+
   const handleExport = () => {
-    exportCSV(filename, cashflows.map(row => ({
+    exportCSV(filename, normalizedCashflows.map(row => ({
       date: formatDisplayDate(row.date),
       amount: Number(row.amount).toFixed(6)
     })));
@@ -29,7 +39,7 @@ export default function CashflowTable({ cashflows = [], title = 'Cashflows', fil
           </tr>
         </thead>
         <tbody>
-          {cashflows.map(({ date, amount }, idx) => (
+          {normalizedCashflows.map(({ date, amount }, idx) => (
             <tr key={`${date}-${idx}`}>
               <td>{formatDisplayDate(date)}</td>
               <td>{Number(amount).toFixed(6)}</td>

@@ -48,6 +48,14 @@ function daysInMonth(year, monthIndexZeroBased) {
   return new Date(Date.UTC(year, monthIndexZeroBased + 1, 0)).getUTCDate();
 }
 
+export function endOfMonth(value) {
+  const date = coerceDate(value);
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  date.setUTCDate(0);
+  return toISO(date);
+}
+
 export function addDays(value, days) {
   const date = coerceDate(value);
   date.setUTCDate(date.getUTCDate() + Number(days || 0));
@@ -64,6 +72,19 @@ export function addMonths(value, months, anchorDay) {
   const lastDay = daysInMonth(year, month);
   date.setUTCDate(Math.min(referenceDay, lastDay));
   return toISO(date);
+}
+
+export function nextBusinessDay(value, direction = 1) {
+  const step = direction >= 0 ? 1 : -1;
+  const date = coerceDate(value);
+  do {
+    date.setUTCDate(date.getUTCDate() + step);
+  } while (isWeekend(date));
+  return toISO(date);
+}
+
+export function previousBusinessDay(value) {
+  return nextBusinessDay(value, -1);
 }
 
 export function rollBusiness(value, roll = 'FOLLOWING') {
