@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { priceDirect, ytmDirect, uploadCF } from '../lib/api.js';
 import { toISO, buildDates } from '../lib/dates.js';
 import StatCard from './StatCard.jsx';
@@ -157,7 +157,7 @@ export default function DirectCFInputs({ bonds = [], onUpload, loadingBonds = fa
         </label>
         <label className="label">
           <span>Settlement Date</span>
-          <input type="date" value={settlementDate} onChange={event => setSettlementDate(event.target.value)} />
+          <input type="date" value={settlementDate} onChange={event => setSettlementDate(event.target.value)} lang="en-GB" />
         </label>
         <label className="label">
           <span>Day-count</span>
