@@ -14,6 +14,12 @@ const defaultSettlementOptions = businessDaySequence(todayISO, 7, { includeStart
 const defaultSettlement = defaultSettlementOptions[0] || nextBusinessDay(todayISO);
 
 const FREQUENCIES = [12, 6, 3, 1];
+const FREQUENCY_DESCRIPTIONS = {
+  12: 'Annually',
+  6: 'Half-yearly',
+  3: 'Quarterly',
+  1: 'Monthly'
+};
 const BUSINESS_ROLLS = ['FOLLOWING', 'MODFOLLOW', 'PRECEDING'];
 const DAY_COUNTS = ['ACT365F', 'ACT360', '30360US'];
 const COMPOUNDING = ['ANNUAL', 'SEMI', 'STREET'];
@@ -146,7 +152,7 @@ export default function ScheduleInputs() {
           <select name="freqMonths" value={form.freqMonths} onChange={handleChange}>
             {FREQUENCIES.map(freq => (
               <option key={freq} value={freq}>
-                {freq}
+                {FREQUENCY_DESCRIPTIONS[freq] ? `${freq} (${FREQUENCY_DESCRIPTIONS[freq]})` : `${freq}`}
               </option>
             ))}
           </select>
